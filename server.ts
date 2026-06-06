@@ -72,7 +72,7 @@ function writeDatabase(db: DatabaseSchema) {
 // ----------------------------------------------------
 // Google Drive helper functions
 // ----------------------------------------------------
-function getGoogleAuth(settings: AppSettings) {
+function getGoogleAuth(settings: AppSettings, req?: any) {
   if (settings.googleAuthType === "serviceAccount") {
     if (!settings.googleServiceAccountKey) {
       throw new Error("Google Service Account Key is empty.");
@@ -91,7 +91,7 @@ function getGoogleAuth(settings: AppSettings) {
     // Standard OAuth2 config
     const clientId = settings.googleOAuthClientId || process.env.GOOGLE_CLIENT_ID || "";
     const clientSecret = settings.googleOAuthClientSecret || process.env.GOOGLE_CLIENT_SECRET || "";
-    const redirectUri = getOAuthRedirectUri();
+    const redirectUri = getOAuthRedirectUri(req);
 
     if (!clientId || !clientSecret) {
       throw new Error("Client ID or Client Secret is missing for OAuth2.");
@@ -107,9 +107,16 @@ function getGoogleAuth(settings: AppSettings) {
   }
 }
 
-function getOAuthRedirectUri(): string {
-  const appUrl = process.env.APP_URL || "http://localhost:3000";
-  return `${appUrl.replace(/\/$/, "")}/api/auth/google/callback`;
+function getOAuthRedirectUri(req?: any): string {
+  if (process.env.APP_URL) {
+    return `${process.env.APP_URL.replace(/\/$/, "")}/api/auth/google/callback`;
+  }
+  if (req) {
+    const protocol = req.headers["x-forwarded-proto"] || req.protocol || "http";
+    const host = req.headers["x-forwarded-host"] || req.get("host") || "localhost:3000";
+    return `${protocol}://${host}/api/auth/google/callback`;
+  }
+  return "http://localhost:3000/api/auth/google/callback";
 }
 
 // Upload a stream or buffer to Google Drive
@@ -504,7 +511,7 @@ app.get("/api/dashboard", async (req, res) => {
     (settings.googleAuthType === "oauth" && settings.googleOAuthRefreshToken)
   ) {
     try {
-      const authClient = getGoogleAuth(settings);
+      const authClient = getGoogleAuth(settings, req);
       const drive = google.drive({ version: "v3", auth: authClient });
       // Quick request to verify API connection is healthy
       await drive.files.list({ 
@@ -681,7 +688,7 @@ app.get("/api/auth/google/url", (req, res) => {
     return res.status(400).json({ error: "Google OAuth credentials are not fully configured in your settings." });
   }
 
-  const redirectUri = getOAuthRedirectUri();
+  const redirectUri = getOAuthRedirectUri(req);
   const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 
   const authUrl = oauth2Client.generateAuthUrl({
@@ -705,7 +712,7 @@ app.get("/api/auth/google/callback", async (req, res) => {
     const clientId = settings.googleOAuthClientId || process.env.GOOGLE_CLIENT_ID || "";
     const clientSecret = settings.googleOAuthClientSecret || process.env.GOOGLE_CLIENT_SECRET || "";
 
-    const redirectUri = getOAuthRedirectUri();
+    const redirectUri = getOAuthRedirectUri(req);
     const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 
     const { tokens } = await oauth2Client.getToken(code);

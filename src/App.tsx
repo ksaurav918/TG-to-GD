@@ -61,6 +61,7 @@ export default function App() {
   const [showClientSecret, setShowClientSecret] = useState(false);
   const [notice, setNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [copiedRedirect, setCopiedRedirect] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -441,6 +442,35 @@ export default function App() {
                                   {showClientSecret ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                                 </button>
                               </div>
+                            </div>
+                          </div>
+
+                          {/* OAuth Callback Redirect Helper */}
+                          <div className="bg-blue-50/75 border border-blue-200/60 rounded-xl p-3.5 space-y-2 text-xs text-blue-850">
+                            <span className="block font-bold text-blue-900">Google OAuth Redirect Assistant</span>
+                            <p className="text-blue-700 leading-relaxed">
+                              If you see <b>Error 400: redirect_uri_mismatch</b>, copy the exact URI below and paste it in your <b>Authorized redirect URIs</b> list inside your Google Developer Cloud Console.
+                            </p>
+                            <div className="flex gap-2 items-center mt-1">
+                              <input
+                                type="text"
+                                readOnly
+                                value={typeof window !== "undefined" ? `${window.location.origin}/api/auth/google/callback` : ""}
+                                className="flex-1 p-2 bg-white border border-blue-200 rounded-lg text-xs font-mono select-all focus:outline-none"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (typeof window !== "undefined") {
+                                    navigator.clipboard.writeText(`${window.location.origin}/api/auth/google/callback`);
+                                    setCopiedRedirect(true);
+                                    setTimeout(() => setCopiedRedirect(false), 2000);
+                                  }
+                                }}
+                                className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-xs transition duration-150 shadow-sm min-w-[75px] text-center cursor-pointer"
+                              >
+                                {copiedRedirect ? "Copied!" : "Copy"}
+                              </button>
                             </div>
                           </div>
 
