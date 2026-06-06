@@ -9,6 +9,7 @@ export interface AppSettings {
   targetFolderId: string;
   isBotActive: boolean;
   expiryHours: number; // Defaults to 24
+  appUrl?: string; // Auto-detected public domain
 }
 
 export interface UploadedFile {
@@ -23,6 +24,7 @@ export interface UploadedFile {
   } | 'Web Dashboard';
   googleFileId: string;
   shareUrl: string;
+  googleViewUrl?: string; // Direct public Google Drive link
   uploadedAt: string;
   expiresAt: string;
   isExpired: boolean;

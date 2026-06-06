@@ -107,16 +107,33 @@ function getGoogleAuth(settings: AppSettings, req?: any) {
   }
 }
 
-function getOAuthRedirectUri(req?: any): string {
+function getAppUrl(req?: any): string {
+  // If explicitly declared in environment
   if (process.env.APP_URL) {
-    return `${process.env.APP_URL.replace(/\/$/, "")}/api/auth/google/callback`;
+    return process.env.APP_URL.replace(/\/$/, "");
   }
+
+  // Try to load auto-cached public domain from localized database
+  try {
+    const dbData = readDatabase();
+    if (dbData.settings.appUrl) {
+      return dbData.settings.appUrl.replace(/\/$/, "");
+    }
+  } catch (e) {}
+
+  // Resolve dynamically from Express request context
   if (req) {
     const protocol = req.headers["x-forwarded-proto"] || req.protocol || "http";
     const host = req.headers["x-forwarded-host"] || req.get("host") || "localhost:3000";
-    return `${protocol}://${host}/api/auth/google/callback`;
+    return `${protocol}://${host}`;
   }
-  return "http://localhost:3000/api/auth/google/callback";
+
+  return "http://localhost:3000";
+}
+
+function getOAuthRedirectUri(req?: any): string {
+  const appUrl = getAppUrl(req);
+  return `${appUrl}/api/auth/google/callback`;
 }
 
 // Upload a stream or buffer to Google Drive
@@ -150,6 +167,21 @@ async function uploadToGoogleDrive(
       fields: "id, name, mimeType, size, webViewLink",
       supportsAllDrives: true,
     } as any);
+
+    // Automatically make the file public so anyone with the link can view/download it directly
+    try {
+      await drive.permissions.create({
+        fileId: response.data.id,
+        requestBody: {
+          role: "reader",
+          type: "anyone",
+        },
+        supportsAllDrives: true,
+      } as any);
+      console.log(`Set direct public permission on newly uploaded Drive file: ${response.data.id}`);
+    } catch (permErr: any) {
+      console.warn("Could not set anyone-readable permissions on Google file. Details:", permErr.message);
+    }
 
     return response.data;
   } catch (error: any) {
@@ -346,8 +378,8 @@ async function handleTelegramUpdate(update: any) {
 
     // 3. Register inside db.json with expiry tracking
     const fileIdInDb = Math.random().toString(36).substring(2, 11) + "_" + Date.now();
-    const appUrl = process.env.APP_URL || `http://localhost:${PORT}`;
-    const publicUrl = `${appUrl.replace(/\/$/, "")}/download/${fileIdInDb}`;
+    const appUrl = getAppUrl();
+    const publicUrl = `${appUrl}/download/${fileIdInDb}`;
 
     const uploadedHours = settings.expiryHours || 24;
     const uploadedAt = new Date();
@@ -365,6 +397,7 @@ async function handleTelegramUpdate(update: any) {
       },
       googleFileId: driveFile.id,
       shareUrl: publicUrl,
+      googleViewUrl: driveFile.webViewLink,
       uploadedAt: uploadedAt.toISOString(),
       expiresAt: expiresAt.toISOString(),
       isExpired: false,
@@ -392,7 +425,8 @@ async function handleTelegramUpdate(update: any) {
       `📦 <b>Name:</b> <code>${fileName}</code>\n` +
       `⚖️ <b>Size:</b> ${sizeMb} MB\n` +
       `⏳ <b>Expiration:</b> ${uploadedHours} Hours\n\n` +
-      `🔗 <b>Public Download URL:</b>\n${publicUrl}\n\n` +
+      `🔗 <b>Direct Google Drive Link:</b>\n${driveFile.webViewLink || "N/A"}\n\n` +
+      `⚡ <b>Secure Download Proxy URL:</b>\n${publicUrl}\n\n` +
       `<i>This download link will automatically self-destruct on ${expiresAt.toLocaleDateString()} at ${expiresAt.toLocaleTimeString()}.</i>`,
       msg.message_id
     );
@@ -484,6 +518,16 @@ app.get("/api/dashboard", async (req, res) => {
   const dbData = readDatabase();
   const settings = dbData.settings;
 
+  // Auto-detect and record public host URL so Telegram downloads work on external networks
+  const protocol = req.headers["x-forwarded-proto"] || req.protocol || "http";
+  const host = req.headers["x-forwarded-host"] || req.get("host") || "localhost:3000";
+  const currentAppUrl = `${protocol}://${host}`;
+  if (!currentAppUrl.includes("localhost") && !currentAppUrl.includes("127.0.0.1") && currentAppUrl !== settings.appUrl) {
+    dbData.settings.appUrl = currentAppUrl;
+    writeDatabase(dbData);
+    settings.appUrl = currentAppUrl;
+  }
+
   const status: SystemStatus = {
     botRunning: false,
     telegramAuthenticated: false,
@@ -564,6 +608,7 @@ app.post("/api/settings", async (req, res) => {
     targetFolderId: newSettings.targetFolderId || "",
     isBotActive: typeof newSettings.isBotActive === "boolean" ? newSettings.isBotActive : false,
     expiryHours: Number(newSettings.expiryHours) || 24,
+    appUrl: currentSettings.appUrl || "",
   };
 
   dbData.settings = updatedSettings;
@@ -619,8 +664,8 @@ app.post("/api/upload", upload.single("file"), async (req, res) => {
     );
 
     const fileIdInDb = Math.random().toString(36).substring(2, 11) + "_" + Date.now();
-    const appUrl = process.env.APP_URL || `http://localhost:${PORT}`;
-    const publicUrl = `${appUrl.replace(/\/$/, "")}/download/${fileIdInDb}`;
+    const appUrl = getAppUrl(req);
+    const publicUrl = `${appUrl}/download/${fileIdInDb}`;
 
     const uploadedHours = settings.expiryHours || 24;
     const uploadedAt = new Date();
@@ -634,6 +679,7 @@ app.post("/api/upload", upload.single("file"), async (req, res) => {
       telegramUser: "Web Dashboard",
       googleFileId: driveFile.id,
       shareUrl: publicUrl,
+      googleViewUrl: driveFile.webViewLink,
       uploadedAt: uploadedAt.toISOString(),
       expiresAt: expiresAt.toISOString(),
       isExpired: false,

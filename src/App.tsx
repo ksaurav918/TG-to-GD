@@ -848,6 +848,18 @@ export default function App() {
                                   </>
                                 )}
                               </button>
+
+                              {file.googleFileId && (
+                                <a
+                                  href={file.googleViewUrl || `https://drive.google.com/open?id=${file.googleFileId}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-blue-600 transition duration-155 flex items-center gap-1.5 cursor-pointer"
+                                  title="Open directly in Google Drive"
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5" /> <span className="text-[10px] font-bold text-nowrap">Drive Link</span>
+                                </a>
+                              )}
                               
                               <button
                                 onClick={() => handleRevokeFile(file.id, file.fileName)}
