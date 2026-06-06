@@ -1,0 +1,6 @@
+{
+  "name": "TG to GD Cloud Uploader",
+  "description": "Upload Telegram files securely to Google Drive and serve temporary public links with 24-hour expiration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
