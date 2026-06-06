@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  telebridge:
+    container_name: telebridge-app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_PATH=/app/data/database.json
+      # Optional: You can pre-define other environment variables here or in a .env file
+      # - TELEGRAM_BOT_TOKEN=your_bot_token
+      # - GOOGLE_CLIENT_ID=your_client_id
+      # - GOOGLE_CLIENT_SECRET=your_client_secret
+    volumes:
+      - telebridge_data:/app/data
+
+volumes:
+  telebridge_data:

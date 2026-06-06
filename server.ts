@@ -12,7 +12,7 @@ dotenv.config();
 
 const app = express();
 const PORT = 3000;
-const DB_FILE = path.join(process.cwd(), "database.json");
+const DB_FILE = process.env.DATABASE_PATH || path.join(process.cwd(), "database.json");
 
 // Configure Multer for in-memory file uploads
 const upload = multer({ storage: multer.memoryStorage() });
