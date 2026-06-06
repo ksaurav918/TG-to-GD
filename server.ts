@@ -136,13 +136,25 @@ async function uploadToGoogleDrive(
     body: fileStreamOrBuffer,
   };
 
-  const response = await drive.files.create({
-    requestBody: metadata,
-    media: media,
-    fields: "id, name, mimeType, size, webViewLink",
-  });
+  try {
+    const response = await drive.files.create({
+      requestBody: metadata,
+      media: media,
+      fields: "id, name, mimeType, size, webViewLink",
+      supportsAllDrives: true,
+    } as any);
 
-  return response.data;
+    return response.data;
+  } catch (error: any) {
+    if (error.message && (error.message.includes("quota") || error.message.includes("storage"))) {
+      throw new Error(
+        "Google Service Accounts have 0 GB storage quota. To resolve this error, you can either: " +
+        "1) Use Google OAuth 2.0 (user-based login with 15 GB free quota), OR " +
+        "2) Create a 'Shared Drive' inside Google Drive, add your Service Account email as 'Content Manager', and input that Shared Drive's ID in 'Target Google Drive Folder ID' below."
+      );
+    }
+    throw error;
+  }
 }
 
 // ----------------------------------------------------
@@ -495,7 +507,11 @@ app.get("/api/dashboard", async (req, res) => {
       const authClient = getGoogleAuth(settings);
       const drive = google.drive({ version: "v3", auth: authClient });
       // Quick request to verify API connection is healthy
-      await drive.files.list({ pageSize: 1 });
+      await drive.files.list({ 
+        pageSize: 1, 
+        supportsAllDrives: true, 
+        includeItemsFromAllDrives: true 
+      } as any);
       status.googleAuthenticated = true;
     } catch (e: any) {
       status.googleAuthenticated = false;
